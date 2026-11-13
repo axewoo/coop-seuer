@@ -218,52 +218,112 @@ public class Plugin : BaseUnityPlugin
         TickPopup();
         try
         {
+            LapStart();
             if (Pressed(hostKey)) HostKey();
+            Lap("keys");
             if (Pressed(leaveKey)) LeaveKey();
+            Lap("keys");
             Session.Tick();
+            Lap("Session.Tick");
             CoopDebug.Tick();
+            Lap("CoopDebug.Tick");
             Shared.Tick();
+            Lap("Shared.Tick");
             Publish();
+            Lap("Publish");
             PoseSync.Tick();
+            Lap("PoseSync.Tick");
             NewGameAdopt.Tick();
+            Lap("NewGameAdopt.Tick");
             WorldShip.Tick();
+            Lap("WorldShip.Tick");
             GuestWorld.Tick();
+            Lap("GuestWorld.Tick");
             HostTravel.Tick();
+            Lap("HostTravel.Tick");
             GuestProfile.Tick();
+            Lap("GuestProfile.Tick");
             WorldSync.Tick();
+            Lap("WorldSync.Tick");
             TickBuild();
+            Lap("TickBuild");
             FreeRoam.WatchAuthority();
+            Lap("FreeRoam.WatchAuthority");
             PowerSync.Tick();
+            Lap("PowerSync.Tick");
             DoorSync.Tick();
+            Lap("DoorSync.Tick");
             TickItems();
+            Lap("TickItems");
             SlotGuest.Tick();
+            Lap("SlotGuest.Tick");
             SaunaHost.Tick();
+            Lap("SaunaHost.Tick");
             SaunaGuest.Tick();
+            Lap("SaunaGuest.Tick");
             QuestHost.Tick();
+            Lap("QuestHost.Tick");
             QuestGuest.Tick();
+            Lap("QuestGuest.Tick");
             VendHost.Tick();
+            Lap("VendHost.Tick");
             VendGuest.Tick();
+            Lap("VendGuest.Tick");
             FreeRoam.Tick();
+            Lap("FreeRoam.Tick");
             Solo.Tick();
+            Lap("Solo.Tick");
             CoopUi.Tick();
+            Lap("CoopUi.Tick");
             CoopChat.Tick();
+            Lap("CoopChat.Tick");
             TimerScale.Tick(Time.unscaledTime);
+            Lap("TimerScale.Tick");
             NpcSync.Tick();
+            Lap("NpcSync.Tick");
             LiquidSync.Tick();
+            Lap("LiquidSync.Tick");
             InteractableSync.Tick();
+            Lap("InteractableSync.Tick");
             InteractableSync.ManifestTick();
+            Lap("InteractableSync.ManifestTick");
             AnimalSync.Tick();
+            Lap("AnimalSync.Tick");
             LookPin.Tick();
+            Lap("LookPin.Tick");
             AppearanceSync.Tick();
+            Lap("AppearanceSync.Tick");
             if (mirrorPuppet.Value) Mirror();
+            Lap("Mirror");
             DrivePuppets();
+            Lap("DrivePuppets");
             CoopMap.Tick();
+            Lap("CoopMap.Tick");
             Puppet.Tick(Time.deltaTime);
+            Lap("Puppet.Tick");
         }
         catch (Exception e)
         {
             CoopLog.Once("Plugin.Update", e);
         }
+    }
+
+    // Frame-stall diagnostics: names the co-op tick that took longer than SlowTickMs.
+    private const double SlowTickMs = 250.0;
+    private static readonly System.Diagnostics.Stopwatch lapWatch = new System.Diagnostics.Stopwatch();
+
+    private static void LapStart()
+    {
+        lapWatch.Reset();
+        lapWatch.Start();
+    }
+
+    private static void Lap(string name)
+    {
+        double ms = lapWatch.Elapsed.TotalMilliseconds;
+        if (ms > SlowTickMs) CoopLog.Log.Warn("coop: slow tick " + name + " took " + ms.ToString("0", System.Globalization.CultureInfo.InvariantCulture) + " ms");
+        lapWatch.Reset();
+        lapWatch.Start();
     }
 
     private static bool Pressed(ModKeybind key)

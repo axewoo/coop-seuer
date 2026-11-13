@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src data:">
+<title>Multiplayer</title>
+<style>
+  /* Palette sampled from handoff\screens\game-tasks-panel.jpg with Pillow. */
+  :root {
+    --backdrop: rgba(6, 6, 6, 0.62);   /* sampled #060606, the darkest outer area */
+    --frame: #2a2a2a;                  /* sampled #2a2a2a, the frame edge */
+    --panel: #101010;                  /* sampled #101010, the most common panel fill */
+    --recess: #0d0d0d;                 /* sampled #0d0d0d, the recessed side column */
+    --strip: #1c1c1c;                  /* sampled #1c1c1c, the tab and header strip */
+    --row: #303030;                    /* sampled #303030, one row bar */
+    --row-hi: #3a3a3a;                 /* one step up from the sampled row bar */
+    --edge: #472f0d;                   /* sampled #472f0d, the amber column hairline */
+    --amber-deep: #714a0f;             /* sampled #714a0f, the active tab fill */
+    --amber-dot: #e29253;              /* sampled #e29253, a task status dot */
+    --green: #638a3b;                  /* sampled #638a3b, a completed task ring */
+    --amber: #b07a1c;                  /* the game's tab amber, the brief's range */
+    --amber-hi: #d99a2b;               /* the lit amber, top of the brief's range */
+    --grey-dot: #4a4a4a;
+    --text: #e8e4da;                   /* the brief's cream; sampled text runs #cacaca to #ffffff */
+    --text-dim: #9a9a9a;
+    --text-off: #3a3a3a;
+  }
+  @font-face {
+    font-family: "ErikaOrmig";
+    src: url("fonts/ErikaOrmig.ttf") format("truetype");
+    font-weight: normal;
+    font-style: normal;
+  }
+  * { box-sizing: border-box; }
+  html { font-size: calc(10px + 0.7vh); }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body {
+    font-family: "ErikaOrmig", "Courier New", Courier, monospace;
+    color: var(--text);
+    user-select: none;
+  }
+  [hidden] { display: none !important; }
+  .stage {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--backdrop);
+  }
+  .panel {
+    width: min(92vw, 40rem);
+    max-height: 94vh;
+    overflow: auto;
+    background: var(--panel);
+    border: 1px solid var(--frame);
+  }
+  .title {
+    padding: 0.55rem 0 0.45rem;
+    background: var(--strip);
+    border-bottom: 2px solid var(--amber);
+    text-align: center;
+  }
+  h1 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: normal;
+    letter-spacing: 0.34em;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+  .inner { padding: 1rem; }
+  .status {
+    margin: 0;
+    text-align: center;
+    font-size: 0.9rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .strip {
+    margin: 0.6rem 0 0;
+    padding: 0.35rem 0.5rem;
+    background: var(--strip);
+    border-left: 3px solid var(--edge);
+    text-align: center;
+    font-size: 0.75rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .strip.on { color: var(--amber-hi); border-left-color: var(--amber); }
+  .rows {
+    margin: 0.6rem 0 0;
+    padding-right: 0.5rem;
+    border-right: 3px solid var(--amber);
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-height: 3rem;
+    margin: 0 0 0.4rem;
+    padding: 0.5rem 0.7rem;
+    background: var(--row);
+  }
+  .row.empty { background: var(--recess); }
+  .dot {
+    flex: 0 0 0.55rem;
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 2px var(--grey-dot);
+  }
+  .dot.menu { box-shadow: inset 0 0 0 2px var(--amber-dot); }
+  .dot.world { box-shadow: inset 0 0 0 2px var(--green); }
+  .frame {
+    position: relative;
+    flex: 0 0 3rem;
+    width: 3rem;
+    height: 3rem;
+    overflow: hidden;
+    background: var(--recess);
+    border: 1px solid var(--frame);
+  }
+  .frame img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .silhouette { position: absolute; inset: 0; }
+  .silhouette::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 18%;
+    width: 30%;
+    height: 30%;
+    transform: translateX(-50%);
+    border-radius: 50%;
+    background: var(--row-hi);
+  }
+  .silhouette::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    width: 58%;
+    height: 38%;
+    transform: translateX(-50%);
+    border-radius: 46% 46% 0 0;
+    background: var(--row-hi);
+  }
+  .row-body { flex: 1 1 auto; min-width: 0; }
+  .row-top { display: flex; align-items: baseline; min-width: 0; }
+  .name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 1rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+  .row.empty .name { color: var(--text-off); }
+  .tag {
+    margin-left: 0.35rem;
+    padding: 0 0.2rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    color: var(--amber);
+    border: 1px solid var(--amber-deep);
+  }
+  .place {
+    margin-top: 0.15rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .row.empty .place { visibility: hidden; }
+  .invite {
+    font: inherit;
+    flex: 0 0 auto;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    background: var(--strip);
+    border: 1px solid var(--frame);
+    border-radius: 0;
+    cursor: pointer;
+  }
+  .invite:hover, .invite.sel { color: #14100a; background: var(--amber); border-color: var(--amber-hi); }
+  .message {
+    min-height: 2.6em;
+    margin: 0.6rem 0 0;
+    text-align: center;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    letter-spacing: 0.1em;
+    color: var(--text);
+  }
+  /* Constraint: the actions stay above the non blocking wait strip, so Cancel is clickable while the reload wait is up (0.12.0). */
+  .acts { display: grid; gap: 0.4rem; margin: 0; position: relative; z-index: 3; }
+  .act {
+    font: inherit;
+    width: 100%;
+    min-height: 3rem;
+    padding: 0.7rem 0.9rem;
+    font-size: 0.9rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    text-align: center;
+    color: var(--text);
+    background: var(--row);
+    border: 1px solid var(--row-hi);
+    border-radius: 0;
+    cursor: pointer;
+  }
+  .act:hover, .act.sel { color: #14100a; background: var(--amber); border-color: var(--amber-hi); }
+  .act.off, .act.off:hover {
+    color: var(--text-off);
+    background: var(--recess);
+    border-color: var(--frame);
+    cursor: default;
+  }
+  /* Constraint: a page button takes its own clicks even with a wait strip up, because only the joining overlay blocks the page (0.12.0). */
+  .act, .invite { pointer-events: auto; }
+  .act:focus, .invite:focus { outline: none; }
+  .act:focus-visible, .invite:focus-visible { outline: 1px solid var(--amber-hi); outline-offset: 1px; }
+  .reason {
+    min-height: 1.2em;
+    margin: 0.5rem 0 0;
+    text-align: center;
+    font-size: 0.8rem;
+    letter-spacing: 0.1em;
+    color: var(--amber-hi);
+  }
+  .joining {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    background: rgba(6, 6, 6, 0.72);
+  }
+  /* Constraint: the reload wait must not cover the page, so its variant is a small strip at the top that lets every click through, while only a join in flight keeps the blocking overlay (0.12.0). */
+  .joining.waiting {
+    inset: 0 0 auto 0;
+    justify-content: flex-start;
+    padding-top: 0.9rem;
+    gap: 0.5rem;
+    background: none;
+    pointer-events: none;
+  }
+  .joining.waiting .spin {
+    width: 1.4rem;
+    height: 1.4rem;
+    border-width: 2px;
+  }
+  .joining.waiting .jointext { font-size: 0.75rem; }
+  .spin {
+    width: 3rem;
+    height: 3rem;
+    border: 3px solid var(--row-hi);
+    border-top-color: var(--amber);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .jointext {
+    margin: 0;
+    font-size: 0.9rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .spin { animation: none; }
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <main class="panel">
+    <header class="title"><h1>MULTIPLAYER</h1></header>
+    <div class="inner">
+      <p class="status" id="status"></p>
+      <p class="strip" id="strip" hidden></p>
+      <section class="rows" id="slots"></section>
+      <p class="message" id="message"></p>
+      <nav class="acts" id="menu"></nav>
+      <p class="reason" id="reason"></p>
+    </div>
+  </main>
+  <div class="joining" id="joining" hidden><div class="spin"></div><p class="jointext" id="jointext">Joining world</p></div>
+</div>
+<script>
+(function () {
+  "use strict";
+  var SLOT_COUNT = 4;
+  var BUTTON_COUNT = 6;
+  var INVITE = "Invite friends";
+  var JOIN = "Join world";
+  var BACK = "Back";
+  var bridge = (window.chrome && window.chrome.webview) ? window.chrome.webview : null;
+  var avatars = {};
+  var slots = [];
+  var buttons = [];
+  var focused = null;
+  var lastState = null;
+  var pendingLabel = "";
+  var pendingAt = 0;
+
+  function $(id) { return document.getElementById(id); }
+
+  function send(message) {
+    if (bridge) bridge.postMessage(message);
+  }
+
+  // Constraint: only a join in flight blocks the page, because the reload wait has to keep its Cancel button live (0.12.0).
+  function blocked() {
+    return lastState !== null && lastState.joining === true;
+  }
+
+  function press(label) {
+    if (!label) return;
+    if (blocked()) return;
+    var now = Date.now();
+    if (label === pendingLabel && now - pendingAt < 300) return;
+    pendingLabel = label;
+    pendingAt = now;
+    send({ type: "press", label: label });
+  }
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function button(label, className) {
+    var node = el("button", className);
+    node.type = "button";
+    node.dataset.label = label || "";
+    node.dataset.enabled = "0";
+    node.dataset.pending = "";
+    // Constraint: setLabel skips the text when dataset.label already matches, so the pooled row Invite button would stay empty without this first paint.
+    node.textContent = label || "";
+    node.addEventListener("click", function () { click(node); });
+    return node;
+  }
+
+  function click(node) {
+    if (node.dataset.pending === "1") return;
+    node.dataset.pending = "1";
+    press(node.dataset.label);
+  }
+
+  function setLabel(node, label, enabled) {
+    if (node.dataset.label !== label) {
+      node.dataset.label = label;
+      node.textContent = label;
+    }
+    node.dataset.enabled = enabled ? "1" : "0";
+    node.dataset.pending = "";
+    node.classList.toggle("off", !enabled);
+    node.setAttribute("aria-disabled", enabled ? "false" : "true");
+  }
+
+  function makeSlot() {
+    var row = el("div", "row");
+    var dot = el("span", "dot empty");
+    var frame = el("div", "frame");
+    var body = el("div", "row-body");
+    var top = el("div", "row-top");
+    var name = el("span", "name", "Open slot");
+    var host = el("span", "tag", "HOST");
+    var you = el("span", "tag", "YOU");
+    var place = el("p", "place", "");
+    var invite = button(INVITE, "invite");
+    invite.hidden = true;
+    host.hidden = true;
+    you.hidden = true;
+    top.appendChild(name);
+    top.appendChild(host);
+    top.appendChild(you);
+    body.appendChild(top);
+    body.appendChild(place);
+    row.appendChild(dot);
+    row.appendChild(frame);
+    row.appendChild(body);
+    row.appendChild(invite);
+    $("slots").appendChild(row);
+    return {
+      row: row, dot: dot, frame: frame, name: name, host: host, you: you,
+      place: place, invite: invite, avatarKey: ""
+    };
+  }
+
+  function paintAvatar(slot, key, src) {
+    if (slot.avatarKey === key) return;
+    slot.avatarKey = key;
+    slot.frame.textContent = "";
+    if (src) {
+      var img = el("img");
+      img.alt = "";
+      img.src = src;
+      slot.frame.appendChild(img);
+    } else {
+      slot.frame.appendChild(el("div", "silhouette"));
+    }
+  }
+
+  function inviteLabel(state) {
+    var list = state.buttons || [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].label === INVITE && list[i].enabled) return list[i].label;
+    }
+    return "";
+  }
+
+  function renderMembers(state) {
+    var members = state.members || [];
+    var offer = state.emptyInvite && !blocked() ? inviteLabel(state) : "";
+    for (var i = 0; i < slots.length; i++) {
+      var slot = slots[i];
+      var member = members[i];
+      if (!member) {
+        paintAvatar(slot, "empty", null);
+        slot.row.className = "row empty";
+        slot.dot.className = "dot empty";
+        slot.name.textContent = "Open slot";
+        slot.host.hidden = true;
+        slot.you.hidden = true;
+        slot.place.textContent = "";
+        slot.invite.hidden = offer.length === 0;
+        setLabel(slot.invite, offer.length > 0 ? offer : INVITE, offer.length > 0);
+        continue;
+      }
+      var src = avatars[member.id] || null;
+      paintAvatar(slot, member.id + (src ? "+" : "-"), src);
+      slot.row.className = "row";
+      slot.dot.className = member.inWorld ? "dot world" : "dot menu";
+      slot.name.textContent = member.name;
+      slot.host.hidden = !member.host;
+      slot.you.hidden = !member.you;
+      slot.place.textContent = member.place || (member.inWorld ? "In world" : "In menu");
+      slot.invite.hidden = true;
+      setLabel(slot.invite, INVITE, false);
+    }
+  }
+
+  function renderButtons(state) {
+    var list = state.buttons || [];
+    for (var i = 0; i < buttons.length; i++) {
+      var node = buttons[i];
+      var item = list[i];
+      node.dataset.pending = "";
+      if (!item) {
+        node.hidden = true;
+        setLabel(node, node.dataset.label, false);
+        continue;
+      }
+      node.hidden = false;
+      setLabel(node, item.label, !!item.enabled && !blocked());
+    }
+  }
+
+  function reasonText(state) {
+    var list = state.buttons || [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].label === JOIN && !list[i].enabled) return list[i].reason || "";
+    }
+    return "";
+  }
+
+  function focusOrder() {
+    var order = [];
+    // Constraint: the joining overlay owns the page, while the reload wait keeps its Cancel button in the focus order (0.12.0).
+    if (blocked()) return order;
+    for (var i = 0; i < slots.length; i++) {
+      if (!slots[i].invite.hidden && slots[i].invite.dataset.enabled === "1") order.push(slots[i].invite);
+    }
+    for (var j = 0; j < buttons.length; j++) {
+      if (!buttons[j].hidden && buttons[j].dataset.enabled === "1") order.push(buttons[j]);
+    }
+    return order;
+  }
+
+  function setFocus(node) {
+    if (focused && focused !== node) focused.classList.remove("sel");
+    focused = node;
+    if (!focused) return;
+    focused.classList.add("sel");
+    try {
+      focused.focus({ preventScroll: true });
+    } catch (e) {
+      focused.focus();
+    }
+  }
+
+  function ensureFocus() {
+    var order = focusOrder();
+    if (!order.length) {
+      setFocus(null);
+      return;
+    }
+    if (focused && order.indexOf(focused) >= 0) return;
+    setFocus(order[0]);
+  }
+
+  function moveFocus(delta) {
+    var order = focusOrder();
+    if (!order.length) return;
+    var at = focused ? order.indexOf(focused) : -1;
+    if (at < 0) at = delta > 0 ? -1 : 0;
+    at = (at + delta + order.length) % order.length;
+    setFocus(order[at]);
+  }
+
+  function pressFocused() {
+    if (focused) click(focused);
+  }
+
+  function render(state) {
+    lastState = state;
+    pendingLabel = "";
+    $("status").textContent = state.status || "";
+    var strip = $("strip");
+    strip.textContent = state.strip || "";
+    strip.hidden = !state.strip;
+    strip.className = state.stripOn ? "strip on" : "strip";
+    $("message").textContent = state.message || "";
+    renderMembers(state);
+    renderButtons(state);
+    $("reason").textContent = reasonText(state);
+    // Constraint: the reload wait uses the non blocking variant, so only a join in flight covers the page and its own Cancel button (0.12.0).
+    var joining = $("joining");
+    joining.hidden = !(state.joining || state.waiting);
+    joining.className = state.joining ? "joining" : "joining waiting";
+    $("jointext").textContent = state.joinText || "Joining world";
+    ensureFocus();
+  }
+
+  function onInput(message) {
+    if (!message) return;
+    if (message.action === "move") {
+      moveFocus(message.dir === "up" || message.dir === "left" ? -1 : 1);
+    } else if (message.action === "press") {
+      pressFocused();
+    } else if (message.action === "back") {
+      press(BACK);
+    }
+  }
+
+  function onMessage(event) {
+    var message = event.data;
+    if (!message) return;
+    if (message.type === "state") {
+      render(message);
+    } else if (message.type === "avatar") {
+      avatars[message.id] = message.data;
+      if (lastState !== null) {
+        renderMembers(lastState);
+        ensureFocus();
+      }
+    } else if (message.type === "input") {
+      onInput(message);
+    }
+  }
+
+  for (var s = 0; s < SLOT_COUNT; s++) slots.push(makeSlot());
+  for (var b = 0; b < BUTTON_COUNT; b++) {
+    var node = button("", "act");
+    node.hidden = true;
+    buttons.push(node);
+    $("menu").appendChild(node);
+  }
+
+  document.addEventListener("keydown", function (event) {
+    var key = event.key;
+    if (key === "Enter" || key === " " || key === "Spacebar") {
+      event.preventDefault();
+      if (event.repeat) return;
+      pressFocused();
+    } else if (key === "ArrowUp" || key === "ArrowLeft") {
+      event.preventDefault();
+      moveFocus(-1);
+    } else if (key === "ArrowDown" || key === "ArrowRight") {
+      event.preventDefault();
+      moveFocus(1);
+    }
+  });
+
+  if (bridge) {
+    bridge.addEventListener("message", onMessage);
+    send({ type: "ready" });
+  } else {
+    render({
+      status: "Your lobby (2/4)",
+      strip: "Host is in the menu",
+      stripOn: false,
+      message: "Invite friends, then Load world.",
+      emptyInvite: true,
+      members: [
+        { id: "1", name: "Host", host: true, you: true, inWorld: false, place: "In menu" },
+        { id: "2", name: "Fentti", host: false, you: false, inWorld: false, place: "In menu" }
+      ],
+      buttons: [
+        { label: INVITE, enabled: true, reason: "" },
+        { label: "Load world", enabled: true, reason: "" },
+        { label: "New co-op world", enabled: true, reason: "" },
+        { label: "Leave lobby", enabled: true, reason: "" },
+        { label: BACK, enabled: true, reason: "" }
+      ]
+    });
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+bin/
+obj/
+GameDir.user.props
+web/lobby/fonts/*.ttf

@@ -11,6 +11,8 @@ internal static partial class Session
     private static float hostGoneGraceAt;
     private static float hostLeftAt;
     private static bool connectionLostShown;
+    private const float LocalFreezeThreshold = 1f;
+    private static float lastConnectionTickAt;
     private static bool leftDeliberately;
 
     internal static bool LeftDeliberately
@@ -117,12 +119,27 @@ internal static partial class Session
 
     private static void ConnectionTick()
     {
+        float now = Time.unscaledTime;
+        float gap = now - lastConnectionTickAt;
+        lastConnectionTickAt = now;
         if (!IsGuest || !GuestSession.InHostWorld)
         {
             connectionLostShown = false;
             return;
         }
-        if (Time.unscaledTime - hostSeenAt < ConnectionStale)
+        // While the guest places and loads the host's world, its own long frames
+        // stop it from reading any packet, so silence there says nothing about the host.
+        if (!GuestSession.Loaded)
+        {
+            hostSeenAt = Mathf.Max(hostSeenAt, now);
+            connectionLostShown = false;
+            return;
+        }
+        // A local freeze (a scene load, a save, a slow machine) also stops packet reads.
+        // Do not count that frozen time as host silence.
+        if (gap > LocalFreezeThreshold && hostSeenAt > -999f)
+            hostSeenAt = Mathf.Min(now, hostSeenAt + gap);
+        if (now - hostSeenAt < ConnectionStale)
         {
             connectionLostShown = false;
             return;

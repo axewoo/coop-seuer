@@ -38,6 +38,8 @@ internal static class GuestProfile
     private static string dueReason = "";
     private static float loadedAt;
     private static float pendingAt;
+    private static int failedCaptures;
+    private const int MaxFailedCaptures = 3;
 
     public static bool Ready
     {
@@ -101,9 +103,9 @@ internal static class GuestProfile
 
     public static void Capture(string reason)
     {
-        if (CoopDebug.On("prof")) CoopDebug.Event("prof", "ask", "a profile capture was asked for by '" + reason + "'");
         float now = Time.unscaledTime;
         if (now < nextAllowed) return;
+        if (CoopDebug.On("prof")) CoopDebug.Event("prof", "ask", "a profile capture was asked for by '" + reason + "'");
         if (!GuestSession.Loaded) return;
         if (!Settled())
         {
@@ -124,8 +126,18 @@ internal static class GuestProfile
         if (bytes == null)
         {
             CoopLog.Log.Error("coop: profile capture (" + reason + ") failed: " + error);
+            // The player objects are gone (the guest is back on the main menu after the host left):
+            // retrying every few seconds only spams the log, the last profile the host stored stays.
+            if (++failedCaptures >= MaxFailedCaptures)
+            {
+                CoopLog.Log.Info("coop: profile capture gave up after " + failedCaptures + " failures, the last stored profile is kept");
+                failedCaptures = 0;
+                due = false;
+                dueReason = "";
+            }
             return;
         }
+        failedCaptures = 0;
         Mirror(bytes);
         due = false;
         dueReason = "";

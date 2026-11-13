@@ -48,7 +48,17 @@ internal static class PowerSync
         {
             bool ok = CorePatcher.Postfix(typeof(CraftingBase), "SetPowerSourceStatus", typeof(PowerSync), "StationChanged", Plugin.PluginGuid);
             ok &= CorePatcher.Postfix(typeof(PowerSource), "FuelStateChange", typeof(PowerSync), "FuelChanged", Plugin.PluginGuid);
-            ok &= CorePatcher.Postfix(typeof(FurnitureStats), "setPower", typeof(PowerSync), "GridChanged", Plugin.PluginGuid);
+            // Up to game 0.5.08 grid changes went through FurnitureStats.setPower. Later builds
+            // (0.5.19) moved power to PowerGrid and PowerGridListener and removed setPower.
+            if (typeof(FurnitureStats).GetMethod("setPower", BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic) != null)
+            {
+                ok &= CorePatcher.Postfix(typeof(FurnitureStats), "setPower", typeof(PowerSync), "GridChanged", Plugin.PluginGuid);
+            }
+            else
+            {
+                ok &= CorePatcher.Postfix(typeof(PowerGrid), "RecalculateGrid", typeof(PowerSync), "GridChanged", Plugin.PluginGuid);
+                ok &= CorePatcher.Postfix(typeof(PowerGridListener), "Toggle", typeof(PowerSync), "GridChanged", Plugin.PluginGuid);
+            }
             if (ok) CoopLog.Log.Info("coop: live station power hooks installed");
             else CoopLog.Log.Error("coop: some live power hooks were refused, polling remains active");
         }

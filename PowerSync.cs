@@ -50,9 +50,11 @@ internal static class PowerSync
             ok &= CorePatcher.Postfix(typeof(PowerSource), "FuelStateChange", typeof(PowerSync), "FuelChanged", Plugin.PluginGuid);
             // Up to game 0.5.08 grid changes went through FurnitureStats.setPower. Later builds
             // (0.5.19) moved power to PowerGrid and PowerGridListener and removed setPower.
-            if (typeof(FurnitureStats).GetMethod("setPower", BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic) != null)
+            // FurnitureStats is marked obsolete in 0.5.19, so it is looked up by name.
+            Type legacyStats = AccessTools.TypeByName("FurnitureStats");
+            if (legacyStats != null && legacyStats.GetMethod("setPower", BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic) != null)
             {
-                ok &= CorePatcher.Postfix(typeof(FurnitureStats), "setPower", typeof(PowerSync), "GridChanged", Plugin.PluginGuid);
+                ok &= CorePatcher.Postfix(legacyStats, "setPower", typeof(PowerSync), "GridChanged", Plugin.PluginGuid);
             }
             else
             {

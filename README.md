@@ -1,4 +1,29 @@
-# Obenseuer Co-op
+# coop-seuer
+
+> [!CAUTION]
+> **AI use: the code changes in this fork were written by an AI assistant (Claude, by Anthropic), then tested in game by the repo owner. Review them before you reuse them.**
+
+coop-seuer is a fork of [Obenseuer-Coop](https://github.com/NomadsReach/Obenseuer-Coop) by NomadsReach, a multiplayer mod for Obenseuer. It starts from Obenseuer-Coop 0.12.2 and fixes the problems found while playing it with a friend on game version 0.5.19 (buildid 26404221), which is newer than the versions upstream was tested on.
+
+All the credit for the mod itself goes to NomadsReach. The fixes here are meant to be offered back upstream.
+
+## What this fork changes
+
+- **Station and interactable states on game 0.5.19.** The game now blanks a loaded save entry instead of removing it, so the Modding Framework treated every state the host sent as a failed load and undid it on the guest. Crafting stations, planting beds, buttons, locks and radios now sync again.
+- **Station power on 0.5.19.** The power hooks moved from the removed `FurnitureStats.setPower` to `PowerGrid.RecalculateGrid` and `PowerGridListener.Toggle`.
+- **First person in a session.** The player no longer sees through their own body after the mod re-applies their look on a scene change.
+- **Joining.** A join request that arrives while the host is still loading or saving waits in a queue instead of being refused.
+- **Leaving.** A guest goes back to the menu right away when the host quits, even after Steam hands the lobby to the guest. The guest no longer sees a false "connection lost" alert while its own game is loading.
+- **Barrels and tanks.** A tank opens as soon as the host gives the guest the lease, and the host no longer marks a tank as in use after its menu closed. The guest now logs each step of opening a tank.
+- **Smaller fixes.** No more error from the players panel when a lobby is created. A guest profile capture gives up after 3 failures instead of looping. A quest state that waits because too many transfers are in flight is no longer logged as an error. Frames where a co-op tick takes over 250 ms are logged.
+
+Everyone in a lobby needs the same DLL. Install this fork's build in place of the upstream one, as described below.
+
+The rest of this file is the upstream README.
+
+---
+
+## Obenseuer Co-op
 
 Play Obenseuer with your friends. One player hosts their save, and up to three friends join their world through a Steam lobby.
 

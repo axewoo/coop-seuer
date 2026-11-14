@@ -127,6 +127,7 @@ internal static class LookPin
             if (PlayerLook.Apply(pin.ToCore(ap), ap))
             {
                 appliedScene = scene;
+                RehideInFirstPerson();
                 CoopLog.Log.Info("look pin: the pinned look was written to the local body in " + SceneName());
                 return;
             }
@@ -140,6 +141,24 @@ internal static class LookPin
         finally
         {
             applying = false;
+        }
+    }
+
+    // Appearance.LoadCharacter switches the body and wearable meshes back on, and the
+    // wearables the pin newly shows were inactive when the game hid the model, so their
+    // renderers were never turned off. In first person the camera then sits inside a
+    // visible body. Let the game hide its own model again.
+    private static void RehideInFirstPerson()
+    {
+        try
+        {
+            ThirdPersonCameraCollision view = ThirdPersonCameraCollision.instance;
+            if (view == null || !view.firstperson) return;
+            view.HidePlayerModel();
+        }
+        catch (Exception e)
+        {
+            CoopLog.Once("LookPin.Rehide", e);
         }
     }
 

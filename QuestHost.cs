@@ -302,7 +302,9 @@ internal static class QuestHost
                 if (id < 0)
                 {
                     sent = false;
-                    CoopLog.Once("QuestHost.blob", "the quest state blob was refused for peer " + peer);
+                    // NetBlob refuses while too many blobs to this peer are in flight (the join
+                    // burst). The peer stays owed and the next tick sends it again, so this is not an error.
+                    if (CoopDebug.On("quest")) CoopDebug.Event("quest", "blob busy", "the quest state blob to " + peer + " waits, too many blobs are in flight, it is retried");
                     continue;
                 }
                 owed.Remove(peer);

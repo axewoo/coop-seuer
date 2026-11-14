@@ -121,7 +121,7 @@ internal static class CoopPlayersPanel
         try
         {
             if (!Session.IsInLobby) return;
-            Styles(Mathf.Clamp(Screen.height / 1080f, MinScale, MaxScale));
+            // GUI.skin may only be read inside OnGUI, Draw builds the styles there.
             Refresh(false);
         }
         catch (Exception e)

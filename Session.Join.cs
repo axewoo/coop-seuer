@@ -143,6 +143,7 @@ internal static partial class Session
 
     private static void StartNextJoin()
     {
+        if (WorldShip.PendingSaveReason() != null) return;
         while (joinQueue.Count > 0)
         {
             ulong next = joinQueue.Dequeue();

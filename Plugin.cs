@@ -76,6 +76,7 @@ public class Plugin : BaseUnityPlugin
         HostTravel.Install();
         FreeRoam.Install();
         Solo.Install();
+        SaveDataCompat.Install();
         LookPin.Install();
         CoopMap.Install();
         if (!PrisonLocal.Install()) CoopLog.Log.Error("the prison hooks did not install, per player prison cells are off");

@@ -185,6 +185,16 @@ internal static partial class LiquidSync
             ResendTick();
             float now = Time.realtimeSinceStartup;
             if (open != null && (LiquidStorage.currentStorage != open || GameUIController.instance == null || !GameUIController.instance.IsMenuVisible)) ExitPostfix(open);
+            // The host's own open is only cleared by ExitExternally. When its menu closes by
+            // another path the tank stayed marked as in use and the guest was told
+            // "The host is using this" until a later click.
+            if (hostOpen != null && FreeRoam.IAmAuthority && (LiquidStorage.currentStorage != hostOpen || GameUIController.instance == null || !GameUIController.instance.IsMenuVisible))
+            {
+                if (CoopDebug.On("cont")) CoopDebug.Event("cont", "liquid", "the host tank menu is closed, the host open mark is cleared");
+                LiquidStorage stale = hostOpen;
+                ExitPostfix(stale);
+                if (hostOpen == stale) hostOpen = null;
+            }
             if (open != null && openKey != null && now >= touchAt)
             {
                 touchAt = now + 30f;
@@ -562,7 +572,16 @@ internal static partial class LiquidSync
             ulong holder;
             if (Holds(group[i], out holder)) return Session.DisplayName(holder) + " is using this";
             LiquidStorage t = Find(group[i]);
-            if (unapplied.ContainsKey(group[i]) || (guest && t != null && (hostOpen == t || HostUses(t)))) return "The host is using this";
+            if (unapplied.ContainsKey(group[i]))
+            {
+                if (CoopDebug.On("cont")) CoopDebug.Event("cont", group[i], "liquid lease refused, the guest's last state is not applied yet");
+                return "The host is still saving your last change, try again";
+            }
+            if (guest && t != null && (hostOpen == t || HostUses(t)))
+            {
+                if (CoopDebug.On("cont")) CoopDebug.Event("cont", group[i], "liquid lease refused, the host has the tank open");
+                return "The host is using this";
+            }
         }
         return null;
     }

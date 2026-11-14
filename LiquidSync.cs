@@ -380,7 +380,21 @@ internal static partial class LiquidSync
                 openKey = key;
                 touchAt = 0f;
                 reentry = true;
-                try { tank.UseStorage(); }
+                try
+                {
+                    tank.UseStorage();
+                    // The lease arrives a few frames after the click, when the game no longer
+                    // treats it as a fresh use, so UseStorage can leave the menu closed and the
+                    // player had to click again. Open it the way LockUse does if it stayed shut.
+                    GameUIController ui = GameUIController.instance;
+                    bool shown = LiquidStorage.currentStorage == tank && ui != null && ui.IsMenuVisible;
+                    if (!shown && (tank._Lock == null || !tank._Lock.Locked))
+                    {
+                        if (InteractObjects.instance != null) InteractObjects.instance.lastUsedInteractable = tank;
+                        tank.EnterExternally(true);
+                        if (CoopDebug.On("cont")) CoopDebug.Event("cont", key, "the leased tank was opened with forceOpen, UseStorage left the menu closed");
+                    }
+                }
                 finally { reentry = false; }
                 return;
             }

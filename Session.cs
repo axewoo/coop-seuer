@@ -62,6 +62,7 @@ internal static partial class Session
         JoinPendingTick();
         QueuedJoinTick();
         if (IsGuest) knownHost = Lobby.Owner;
+        else if (!IsInLobby) knownHost = 0;
         HostGoneTick();
         ConnectionTick();
         if (Lobby.Status == LobbyStatus.Hosting) SendHost();
@@ -370,12 +371,20 @@ internal static partial class Session
 
     private static void OnMemberLeft(ulong id)
     {
-        if (IsGuest && id == knownHost) MarkHostLeft();
+        if (WasGuest && id == knownHost) MarkHostLeft();
     }
 
     private static void OnOwnerChanged(ulong previous, ulong owner)
     {
-        if (IsGuest && previous != 0 && owner != 0) MarkHostLeft();
+        if (WasGuest && previous != 0 && owner != 0) MarkHostLeft();
+    }
+
+    // When the host quits, Steam hands the lobby to the guest and the status turns to
+    // Hosting before these events run, so IsGuest is already false. Remember the role
+    // through the host this machine last followed instead.
+    private static bool WasGuest
+    {
+        get { return IsGuest || (knownHost != 0 && knownHost != Me); }
     }
 
     internal static string WorldIdFor(string owner)
